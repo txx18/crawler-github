@@ -43,7 +43,7 @@ class IssueSpider(scrapy.spiders.Spider):
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:36.0) Gecko/20100101 Firefox/36.0',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en',
-            'Authorization': 'token ' + self.token_iter.next(),  # 这个字段为添加token字段
+            'Authorization': 'token ' + self. token_iter.next(),  # 这个字段为添加token字段
         }, callback=self.parse))
 
         return start_urls

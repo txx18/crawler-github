@@ -2,6 +2,8 @@ from util.FileUtils import *
 import os
 from decimal import Decimal
 
+# emailRegEx = r'^[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+){0,4}@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+){0,4}$'
+
 def analyCommits(owner, repo, corp):
     data = getCommitsData(owner, repo)
     res = commitsStat(data, corp)
@@ -20,7 +22,11 @@ def getCommitsData(owner, repo):
             json = readJsonFile(os.path.join(dirCommits, jsonFile))
             for commit in json:
                 totalCount += 1
-                authorEmail = commit["commit"]["author"]["email"]
+                try:
+                    authorEmail = commit["commit"]["author"]["email"]
+                except Exception as e:
+                    print(e)
+                    break
                 # committerEmail = commit["commit"]["committer"]["email"]
                 # 数据清洗，"noreply"的邮箱不计
                 if authorEmail.find("noreply") == -1:

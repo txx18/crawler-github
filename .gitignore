@@ -4,6 +4,8 @@ contributors
 file
 repos
 users
+result
+forks
 
 # Created by .ignore support plugin (hsz.mobi)
 ### Python template
@@ -147,3 +149,4 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+forks/
