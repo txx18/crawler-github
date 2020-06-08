@@ -4,21 +4,29 @@ import time
 
 import click
 import requests
+from lxml import etree
+from selenium import webdriver
+from selenium.webdriver import ActionChains
+from selenium.webdriver.common.keys import Keys
 
 from util import helpers
 from util.FileUtils import *
 from crawler_module import gol, query
+from util.helpers import *
 
 
 class Crawler(object):
 
     def __init__(self):
-        self.userApi = "https://api.github.com/users/"
+        self.USERSAPI = "https://api.github.com/users/"
+        self.REPOSAPI = "https://api.github.com/repos/"
         self.access_token = gol.get_value("access_token")
         self.headers = gol.get_value("headers")
+        # self.driver = webdriver.Chrome()
+        # self.driver.implicitly_wait(10)
 
     def listAllRepos(self, owner="PaddlePaddle"):
-        url = self.userApi + owner + "/repos?per_page=100&access_token=" + self.access_token
+        url = self.USERSAPI + owner + "/repos?per_page=100&access_token=" + self.access_token
         print("开始爬取" + owner + "的至多100个repo...")
         resultStr = ""
         try:
@@ -89,7 +97,7 @@ class Crawler(object):
             userNo += 1
             print("爬取...第" + str(userNo) + "个用户")
             login = contributor["login"]
-            url = self.userApi + login + "?access_token=" + self.access_token
+            url = self.USERSAPI + login + "?access_token=" + self.access_token
             try:
                 resp = requests.get(url, gol.get_value("headers"))
                 respStr = resp.content.decode() + ","
@@ -118,6 +126,113 @@ class Crawler(object):
         writeFile(outDir, os.path.join(outDir, repo + ".json"), resultStr)
         return resultStr
 
+    def getStatsContributors(self, owner="PaddlePaddle", repo="Serving", pageNo=0, retry_times=3):
+        print("开始爬取" + owner + "的" + repo + "仓库的StatsContributors")
+        time.sleep(3)
+        # 面对异常处理，需要从当前失败的页继续开始
+        pageNo += 1
+        url = "%s%s/%s/stats/contributors?page=%s&per_page=100" % (self.REPOSAPI, owner, repo, str(pageNo))
+        # url = self.REPOSAPI + owner + "/" + repo + "/stats/contributors?page=" + str(pageNo) + "&per_page=100"
+        resultStr = ""
+        print("爬取...第" + str(pageNo) + "页")
+        try:
+            # 获取第pageNo页
+            headers = updateHeaders()
+            # proxy = updateIP()
+            # resp = requests.get(url, headers=headers)
+            resp = requests.get(url, headers=headers, verify=False)
+            firstPageStr = resp.content.decode()
+            # 测试API限制
+            print(gol.get_value("headers"))
+            # print(gol.get_value("proxy"))
+            print(str(resp.headers.get("X-RateLimit-Limit")) + " remain: " + str(resp.headers.get("X-RateLimit-Remaining")))
+            resultStr += firstPageStr
+            # 剔除没有贡献者的forkRepo
+            if resultStr == "{}" or "":
+                return
+            # 有时候会有各种异常，必须抛出禁止写入
+            if resp.status_code != 200 or resultStr.find("total") == -1:
+                raise Exception("wrong resp")
+            # 写入文件
+            outDir = os.path.join(os.getcwd(), "..", "statsContributors", owner, repo)
+            writeFile(outDir, os.path.join(outDir, "page1.json"), resultStr)
+            # 如果有下一页，循环
+            while resp.links.__contains__("next"):
+                pageNo += 1
+                print("爬取...第" + str(pageNo) + "页")
+                time.sleep(3)
+                nextUrl = resp.links["next"]["url"]
+                headers = updateHeaders()
+                resp = requests.get(nextUrl, headers=headers)
+                resultStr = resp.content.decode()
+                # 有时候被拒绝请求会返回message，抛出异常
+                if resultStr.find("API rate limit exceeded for") != -1:
+                    raise Exception("API rate limit exceeded")
+                # 写入文件
+                writeFile(outDir, os.path.join(outDir, "page" + str(pageNo) + ".json"), resultStr)
+        except Exception as e:
+            print(e)
+            error_msg = "爬取第" + str(pageNo) + "页时出现异常...正在重试..."
+            if error_msg is not None:
+                print(error_msg)
+                if retry_times == 0:
+                    print("失败3次，中止...")
+                    raise Exception('请求异常', '爬取失败')
+                else:
+                    time.sleep(30)
+                    return self.getStatsContributors(owner, repo, pageNo - 1, retry_times - 1)
+        print("已爬完" + owner + "的" + repo + "仓库的StatsContributors")
+        return resultStr
+
+    # driver.set_page_load_timeout(30)
+    def _get_url(self, url, retry_times=3):
+        self.driver.get("https://www.github.com")
+        # time.sleep(30)
+        print("initialed")
+        try:
+            raw_data = None
+            error_msg = None
+            ActionChains(self.driver).key_down(Keys.CONTROL).send_keys("t").key_up(Keys.CONTROL).perform()
+            # Loads a web page in the current browser session.
+            self.driver.get(url)
+            ActionChains(self.driver).key_down(Keys.CONTROL).send_keys("w").key_up(Keys.CONTROL).perform()
+            print("url got")
+            raw_data = self.driver.page_source.encode('utf-8')
+        except Exception as e:
+            print(e)
+            error_msg = "maybe timeout"
+        if error_msg != None:
+            print(error_msg)
+            if retry_times == 0:
+                return None
+            else:
+                time.sleep(3)
+                return self._get_url(self, url, retry_times - 1)
+        return raw_data
+
+    def getRepoNumTypeInfo(self, owner, repo):
+        """
+        webdriver请求的方式
+        :param owner:
+        :param repo:
+        :return:
+        """
+        repoNumTypeInfo = {}
+        repo_url = "https://github.com/%s/%s"
+        print("开始爬取%sfork的%s仓库的数值信息..." % (owner, repo))
+        ini_html = self._get_url(repo_url % (owner, repo))
+        # ini_html = self.driver.get(repo_url % (owner, repo))
+        if ini_html is None:
+            print("\t", "no result")
+        numTypeInfoList = etree.HTML(ini_html).xpath('//*/span[@class="num text-emphasized"]/text()')
+        if len(numTypeInfoList) != 0:
+            repoNumTypeInfo["commits"] = numTypeInfoList[0]
+            repoNumTypeInfo["contributors"] = numTypeInfoList[4]
+        else:
+            print("no num text-emphasized")
+        return repoNumTypeInfo
+
+
     def listPageCommits(self, owner="PaddlePaddle", repo="Serving", since="2017-01-01T00:00:00Z", pageNo=0, retry_times=3):
         print("开始爬取" + owner + "的" + repo + "仓库的Commits，数据采集开始时间：" + since)
         time.sleep(3)
@@ -129,7 +244,7 @@ class Crawler(object):
         print("爬取...第" + str(pageNo) + "页")
         try:
             # 获取第pageNo页
-            resp = requests.get(url, self.headers)
+            resp = requests.get(url, headers=self.headers)
             firstPageStr = resp.content.decode()
             # 测试API限制
             print(gol.get_value("headers"))
@@ -147,7 +262,7 @@ class Crawler(object):
                 print("爬取...第" + str(pageNo) + "页")
                 time.sleep(4)
                 nextUrl = resp.links["next"]["url"] + "&since=" + since
-                resp = requests.get(nextUrl, self.headers)
+                resp = requests.get(nextUrl, headers=self.headers)
                 resultStr = resp.content.decode()
                 # 有时候被拒绝请求会返回message，抛出异常
                 if resultStr.find("API rate limit exceeded for") != -1:
@@ -168,18 +283,18 @@ class Crawler(object):
         print("已爬完" + owner + "的" + repo + "仓库的Commits，数据采集开始时间：" + since)
         return resultStr
 
-    def listPageForks(self, owner="PaddlePaddle", repo="Serving", pageNo=0, retry_times=3):
+    def getRepoForks(self, owner="PaddlePaddle", repo="Serving", pageNo=0, retry_times=3):
         print("开始爬取" + owner + "的" + repo + "仓库的Forks")
         time.sleep(4)
         # 面对异常处理，需要从当前失败的页继续开始
         pageNo += 1
-        url = "https://api.github.com/repos/" + owner + "/" + repo + "/forks?page=" + str(
+        url = self.REPOSAPI + owner + "/" + repo + "/forks?page=" + str(
             pageNo) + "&per_page=100"
         resultStr = ""
         print("爬取...第" + str(pageNo) + "页")
         try:
             # 获取第pageNo页
-            resp = requests.get(url, self.headers)
+            resp = requests.get(url, headers=self.headers, verify=False)
             firstPageStr = resp.content.decode()
             # 测试API限制
             print(gol.get_value("headers"))
@@ -197,7 +312,7 @@ class Crawler(object):
                 print("爬取...第" + str(pageNo) + "页")
                 time.sleep(4)
                 nextUrl = resp.links["next"]["url"]
-                resp = requests.get(nextUrl, self.headers)
+                resp = requests.get(nextUrl, headers=self.headers, verify=False)
                 resultStr = resp.content.decode()
                 # 有时候被拒绝请求会返回message，抛出异常
                 if resultStr.find("API rate limit exceeded for") != -1:
@@ -214,7 +329,7 @@ class Crawler(object):
                     raise Exception('请求异常', '爬取失败')
                 else:
                     time.sleep(3)
-                    return self.listPageCommits(owner, repo, pageNo - 1, retry_times - 1)
+                    return self.getRepoForks(owner, repo, pageNo - 1, retry_times - 1)
         print("已爬完" + owner + "的" + repo + "仓库的Forks")
         return resultStr
 

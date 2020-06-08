@@ -9,6 +9,13 @@ def writeFile(fileDir, file, data):
         # json.dump(data, outfile)
         outfile.write(data)
 
+def writeFileAppend(fileDir, file, data):
+    if not os.path.exists(fileDir):
+        os.makedirs(fileDir)
+    with open(file, 'a', encoding="utf-8") as outfile:
+        # json.dump(data, outfile)
+        outfile.write(data)
+
 def writeJsonFile(fileDir, file, data):
     if not os.path.exists(fileDir):
         os.makedirs(fileDir)
