@@ -8,6 +8,7 @@ from crawler_module import gol
 from util.FileUtils import *
 from analy_module.analy_commits import *
 from analy_module.analy_repos import *
+from visualization_module.visualization import *
 import pandas as pd
 import plotly.express as px
 
@@ -158,14 +159,16 @@ if __name__ == "__main__":
 
     # 分析所有的fork仓库输出结果
     forkReposAnalyRes = statStatsContributors()
-    print(forkReposAnalyRes)
-    df = pd.DataFrame(list(forkReposAnalyRes.values()), index=list(forkReposAnalyRes.keys()), columns=list(forkReposAnalyRes.values())[0].keys())
-    df = df.sort_values(by=['contributorCount', 'commitCount'], ascending=False)
-    resultDir = os.path.join(os.getcwd(), "..", "result", "statsContributors")
-    if not os.path.exists(resultDir):
-        os.makedirs(resultDir)
-    df.to_csv(os.path.join(resultDir, "统计结果" + time.strftime("%Y-%m-%d %H-%M-%S", time.localtime()) + ".csv"))
-    print("分析完成，已导出csv到results文件夹下")
+    # df = pd.DataFrame(list(forkReposAnalyRes.values()), index=list(forkReposAnalyRes.keys()), columns=list(forkReposAnalyRes.values())[0].keys())
+    # df = df.sort_values(by=['contributorCount', 'commitCount'], ascending=False)
+    # resultDir = os.path.join(os.getcwd(), "..", "result", "statsContributors")
+    # if not os.path.exists(resultDir):
+    #     os.makedirs(resultDir)
+    # df.to_csv(os.path.join(resultDir, "统计结果" + time.strftime("%Y-%m-%d %H-%M-%S", time.localtime()) + ".csv"))
+    # print("分析完成，已导出csv到results文件夹下")
+    # 画出直方图
+    ForkReposBarh(forkReposAnalyRes)
+
 
     # 爬一个repo的所有contributor
     # cw.getAllContributors("PaddlePaddle", "models")

@@ -37,10 +37,10 @@ def readStatsContributors(owner, repo):
             json = readJsonFile(os.path.join(repoDir, jsonFile))
         except Exception as e:
             print(e)
-            print("read jsonFile failed")
+            # print("read jsonFile failed")
         for dic in json:
             if dic.__contains__('total') is False:
-                print("no total attr")
+                # print("no total attr")
                 return res
             contributorCount += 1
             commitCount += dic["total"]
@@ -56,7 +56,7 @@ def statStatsContributors():
         contributorCount = 0
         commitCount = 0
         for repoFolder in os.listdir(ownerDir):
-            print(ownerFolder + "/" + repoFolder)
+            # print(ownerFolder + "/" + repoFolder)
             res[repoFolder] = {}
             oneRepoRes = readStatsContributors(ownerFolder, repoFolder)
             contributorCount += oneRepoRes["contributorCount"]
